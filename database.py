@@ -74,21 +74,36 @@ def create_account(
         return False, "اسم المستخدم محجوز مسبقاً، يرجى اختيار اسم آخر", None
 
     pwd_hash = hash_password(password)
+    # حساب الأستاذ مفعل تلقائياً ومباشرة، أما المدرسة فتنتظر تفعيل الإدارة
+    is_teacher = (account_type == 'teacher')
+    is_active_initial = 1 if is_teacher else 0
+    expires_at_initial = "2099-12-31" if is_teacher else None
+
     try:
         cursor.execute("""
-            INSERT INTO accounts (account_type, full_name, school_name, username, password_hash, contact_info, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, 0)
+            INSERT INTO accounts (account_type, full_name, school_name, username, password_hash, contact_info, is_active, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             account_type,
             full_name.strip(),
             school_name.strip() if school_name else full_name.strip(),
             username.strip().lower(),
             pwd_hash,
-            contact_info.strip()
+            contact_info.strip(),
+            is_active_initial,
+            expires_at_initial
         ))
         acc_id = cursor.lastrowid
+
+        if is_teacher:
+            cursor.execute("""
+                INSERT INTO activation_logs (account_id, action, details)
+                VALUES (?, 'auto_activate', 'Auto-activated teacher account (Free Tier)')
+            """, (acc_id,))
+
         conn.commit()
-        return True, "تم إنشاء الحساب بنجاح وهو الآن بانتظار التفعيل", acc_id
+        msg = "تم إنشاء وتفعيل حساب الأستاذ بنجاح! يمكنك الآن تسجيل الدخول مباشرة من التطبيق." if is_teacher else "تم إنشاء الحساب بنجاح وهو الآن بانتظار التفعيل من الإدارة."
+        return True, msg, acc_id
     except Exception as e:
         conn.rollback()
         return False, f"حدث خطأ أثناء إنشاء الحساب: {e}", None

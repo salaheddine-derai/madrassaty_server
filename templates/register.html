@@ -137,12 +137,12 @@
                 ✓
             </div>
             <h3 class="text-xl font-bold text-white">تم إنشاء الحساب بنجاح!</h3>
-            <p class="text-sm text-slate-300 leading-relaxed">
-                حسابك الآن قيد المراجعة. لتفعيل الحساب وربطه بجهازك، يرجى التواصل مع إدارة مدرستي.
+            <p id="modal-desc" class="text-sm text-slate-300 leading-relaxed">
+                تم تسجيل حسابك بنجاح.
             </p>
             <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 text-right text-xs space-y-2">
                 <div class="flex justify-between"><span class="text-slate-400">اسم المستخدم:</span> <span id="modal-username" class="font-bold text-white font-mono"></span></div>
-                <div class="flex justify-between"><span class="text-slate-400">حالة الحساب:</span> <span class="text-amber-400 font-bold">بانتظار التفعيل ⏳</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">حالة الحساب:</span> <span id="modal-status" class="text-amber-400 font-bold">بانتظار التفعيل ⏳</span></div>
             </div>
             <div class="pt-2 flex flex-col gap-2">
                 <a href="/status" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition text-sm">متابعة حالة الحساب</a>
@@ -208,6 +208,13 @@
                 const data = await res.json();
                 if (data.success) {
                     document.getElementById('modal-username').innerText = payload.username;
+                    if (payload.account_type === 'teacher') {
+                        document.getElementById('modal-desc').innerText = "تم تفعيل حسابك كأستاذ تلقائياً وبشكل مجاني! يمكنك الآن فتح التطبيق وتسجيل الدخول فوراً للبدء.";
+                        document.getElementById('modal-status').innerHTML = '<span class="text-emerald-400 font-bold">مفعّل ومباشر ✨</span>';
+                    } else {
+                        document.getElementById('modal-desc').innerText = "حسابك الآن قيد المراجعة. لتفعيل الحساب وربطه بجهازك، يرجى التواصل مع إدارة مدرستي.";
+                        document.getElementById('modal-status').innerHTML = '<span class="text-amber-400 font-bold">بانتظار التفعيل ⏳</span>';
+                    }
                     document.getElementById('successModal').classList.remove('hidden');
                     document.getElementById('regForm').reset();
                 } else {
