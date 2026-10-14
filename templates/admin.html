@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم الإدارة والتراخيص - منصة مدرستي</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Cairo', sans-serif; } </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+
+    <!-- Top Bar -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-3.5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-lg border border-emerald-500/30">
+                    🛡️
+                </div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-extrabold text-white">لوحة تحكم التراخيص المركزية</h1>
+                    <p class="text-[11px] text-slate-400">إدارة حسابات المدارس والأساتذة والأجهزة</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="/" class="px-3 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">بوابة التسجيل ↗</a>
+                <button onclick="logoutAdmin()" class="px-3 py-1.5 rounded-lg text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition">قفل اللوحة 🔒</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Admin Content Container -->
+    <main class="max-w-7xl mx-auto px-4 py-8">
+
+        <!-- Login / Password Screen (if not authenticated) -->
+        <div id="authSection" class="max-w-md mx-auto my-12 bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-2xl text-center space-y-4">
+            <div class="w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center text-2xl mx-auto">
+                🔐
+            </div>
+            <h2 class="text-xl font-bold text-white">تسجيل الدخول للوحة الإدارة</h2>
+            <p class="text-xs text-slate-400">أدخل الرمز السري للإدارة للوصول للحسابات والتفعيل</p>
+            <form onsubmit="handleAdminLogin(event)" class="space-y-3">
+                <input type="password" id="admin_key" required placeholder="رمز الإدارة السري (Admin Secret Key)"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 text-center font-mono">
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl transition text-sm">
+                    دخول اللوحة
+                </button>
+            </form>
+        </div>
+
+        <!-- Dashboard Content (Protected) -->
+        <div id="dashboardSection" class="hidden space-y-6">
+
+            <!-- Stats KPI Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-700">
+                    <p class="text-xs text-slate-400">إجمالي المدارس</p>
+                    <p id="kpi-schools" class="text-2xl font-bold text-white mt-1">0</p>
+                </div>
+                <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-700">
+                    <p class="text-xs text-slate-400">إجمالي الأساتذة</p>
+                    <p id="kpi-teachers" class="text-2xl font-bold text-sky-400 mt-1">0</p>
+                </div>
+                <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-700">
+                    <p class="text-xs text-slate-400">حسابات نشطة ومفعلة</p>
+                    <p id="kpi-active" class="text-2xl font-bold text-emerald-400 mt-1">0</p>
+                </div>
+                <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-700">
+                    <p class="text-xs text-slate-400">بانتظار التفعيل</p>
+                    <p id="kpi-pending" class="text-2xl font-bold text-amber-400 mt-1">0</p>
+                </div>
+            </div>
+
+            <!-- Filter and Search Bar -->
+            <div class="bg-slate-800/60 p-4 rounded-xl border border-slate-700 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <button onclick="filterAccounts('all')" id="btn-all" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white">الكل</button>
+                    <button onclick="filterAccounts('school')" id="btn-school" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 hover:text-white">المدارس 🏫</button>
+                    <button onclick="filterAccounts('teacher')" id="btn-teacher" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 hover:text-white">الأساتذة 👨‍🏫</button>
+                    <button onclick="filterAccounts('pending')" id="btn-pending" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 hover:text-white">قيد الانتظار ⏳</button>
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <input type="text" id="searchInput" oninput="applySearch()" placeholder="بحث بالاسم أو اسم المستخدم..."
+                        class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 w-full sm:w-64">
+                    <button onclick="loadAccounts()" class="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 text-xs" title="تحديث القائمة">🔄</button>
+                </div>
+            </div>
+
+            <!-- Accounts Table -->
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right text-xs">
+                        <thead class="bg-slate-900/80 text-slate-400 border-b border-slate-700">
+                            <tr>
+                                <th class="p-3">#</th>
+                                <th class="p-3">النوع</th>
+                                <th class="p-3">الاسم / المؤسسة</th>
+                                <th class="p-3">اسم المستخدم</th>
+                                <th class="p-3">رقم الاتصال</th>
+                                <th class="p-3">الحالة</th>
+                                <th class="p-3">الصلاحية</th>
+                                <th class="p-3">الجهاز المرتبط</th>
+                                <th class="p-3 text-center">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="accountsTableBody" class="divide-y divide-slate-700/60 text-slate-200">
+                            <!-- Rows loaded via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Activation Duration Modal -->
+    <div id="activateModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl">
+            <h3 class="text-base font-bold text-white">تفعيل وترخيص الحساب</h3>
+            <p id="act-acc-name" class="text-xs text-slate-300"></p>
+            
+            <div class="text-right space-y-2">
+                <label class="block text-xs text-slate-400">حدد مدة التفعيل:</label>
+                <select id="act_duration" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500">
+                    <option value="365" selected>سنة كاملة (365 يوم) - اشتراك سنوي</option>
+                    <option value="180">6 أشهر (180 يوم)</option>
+                    <option value="30">شهر تجريبي (30 يوم)</option>
+                    <option value="lifetime">تفعيل دائم (مفتوح مدى الحياة)</option>
+                </select>
+            </div>
+
+            <input type="hidden" id="act_acc_id">
+            <div class="pt-2 flex gap-2">
+                <button onclick="confirmActivation()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition">تأكيد التفعيل ✓</button>
+                <button onclick="closeActivateModal()" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl text-xs transition">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allAccounts = [];
+        let currentFilter = 'all';
+
+        function getAdminKey() {
+            return localStorage.getItem('madrassaty_admin_key') || '';
+        }
+
+        window.onload = function() {
+            const key = getAdminKey();
+            if (key) {
+                checkAuthAndLoad(key);
+            }
+        };
+
+        async function handleAdminLogin(e) {
+            e.preventDefault();
+            const key = document.getElementById('admin_key').value.trim();
+            if (!key) return;
+            checkAuthAndLoad(key);
+        }
+
+        async function checkAuthAndLoad(key) {
+            try {
+                const res = await fetch(`/api/admin/accounts?admin_key=${encodeURIComponent(key)}`);
+                if (res.status === 401) {
+                    alert("رمز الإدارة غير صحيح!");
+                    localStorage.removeItem('madrassaty_admin_key');
+                    document.getElementById('authSection').classList.remove('hidden');
+                    document.getElementById('dashboardSection').classList.add('hidden');
+                    return;
+                }
+                const data = await res.json();
+                localStorage.setItem('madrassaty_admin_key', key);
+                document.getElementById('authSection').classList.add('hidden');
+                document.getElementById('dashboardSection').classList.remove('hidden');
+                allAccounts = data.accounts;
+                renderDashboard();
+            } catch (err) {
+                alert("خطأ أثناء الاتصال: " + err);
+            }
+        }
+
+        function logoutAdmin() {
+            localStorage.removeItem('madrassaty_admin_key');
+            location.reload();
+        }
+
+        async function loadAccounts() {
+            const key = getAdminKey();
+            if (!key) return;
+            checkAuthAndLoad(key);
+        }
+
+        function renderDashboard() {
+            // Update KPIs
+            const schools = allAccounts.filter(a => a.account_type === 'school');
+            const teachers = allAccounts.filter(a => a.account_type === 'teacher');
+            const active = allAccounts.filter(a => a.is_active === 1);
+            const pending = allAccounts.filter(a => a.is_active === 0);
+
+            document.getElementById('kpi-schools').innerText = schools.length;
+            document.getElementById('kpi-teachers').innerText = teachers.length;
+            document.getElementById('kpi-active').innerText = active.length;
+            document.getElementById('kpi-pending').innerText = pending.length;
+
+            renderTable();
+        }
+
+        function filterAccounts(type) {
+            currentFilter = type;
+            ['all', 'school', 'teacher', 'pending'].forEach(t => {
+                const btn = document.getElementById(`btn-${t}`);
+                if (t === type) {
+                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white";
+                } else {
+                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 hover:text-white";
+                }
+            });
+            renderTable();
+        }
+
+        function applySearch() {
+            renderTable();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('accountsTableBody');
+            tbody.innerHTML = '';
+
+            const query = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+
+            const filtered = allAccounts.filter(acc => {
+                if (currentFilter === 'school' && acc.account_type !== 'school') return false;
+                if (currentFilter === 'teacher' && acc.account_type !== 'teacher') return false;
+                if (currentFilter === 'pending' && acc.is_active !== 0) return false;
+
+                if (query) {
+                    const matchName = (acc.full_name || '').toLowerCase().includes(query);
+                    const matchUser = (acc.username || '').toLowerCase().includes(query);
+                    const matchContact = (acc.contact_info || '').toLowerCase().includes(query);
+                    return matchName || matchUser || matchContact;
+                }
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400">لا توجد حسابات مطابقة</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(acc => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-700/30 transition";
+
+                const typeBadge = (acc.account_type === 'school') 
+                    ? `<span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">مدرسة 🏫</span>`
+                    : `<span class="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">أستاذ 👨‍🏫</span>`;
+
+                const statusBadge = (acc.is_active === 1)
+                    ? `<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">نشط ✓</span>`
+                    : `<span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-semibold border border-amber-500/30">معلق ⏳</span>`;
+
+                const deviceBadge = acc.bound_device_id
+                    ? `<div class="flex items-center gap-1.5"><span class="text-emerald-400">مرتبط 🔒</span><button onclick="unbindDevice(${acc.id})" class="text-[10px] bg-slate-700 hover:bg-slate-600 px-1.5 py-0.5 rounded text-amber-300" title="فك ربط الجهاز">فك 🔓</button></div>`
+                    : `<span class="text-slate-500">غير مرتبط</span>`;
+
+                tr.innerHTML = `
+                    <td class="p-3 text-slate-400">${acc.id}</td>
+                    <td class="p-3">${typeBadge}</td>
+                    <td class="p-3 font-semibold text-white">${acc.full_name}</td>
+                    <td class="p-3 font-mono text-slate-300">${acc.username}</td>
+                    <td class="p-3 font-mono text-slate-400">${acc.contact_info}</td>
+                    <td class="p-3">${statusBadge}</td>
+                    <td class="p-3 text-slate-300">${acc.expires_at || "—"}</td>
+                    <td class="p-3">${deviceBadge}</td>
+                    <td class="p-3 text-center">
+                        <div class="flex items-center justify-center gap-1.5">
+                            ${acc.is_active === 0 
+                                ? `<button onclick="openActivateModal(${acc.id}, '${acc.full_name}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold shadow">تفعيل ✓</button>`
+                                : `<button onclick="deactivateAccount(${acc.id})" class="px-2 py-1 bg-amber-600/80 hover:bg-amber-600 text-white rounded text-[11px]">تعطيل ⏸</button>`
+                            }
+                            <button onclick="deleteAccount(${acc.id}, '${acc.username}')" class="px-2 py-1 bg-rose-600/80 hover:bg-rose-600 text-white rounded text-[11px]" title="حذف الحساب">🗑</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openActivateModal(id, name) {
+            document.getElementById('act_acc_id').value = id;
+            document.getElementById('act-acc-name').innerText = name;
+            document.getElementById('activateModal').classList.remove('hidden');
+        }
+
+        function closeActivateModal() {
+            document.getElementById('activateModal').classList.add('hidden');
+        }
+
+        async function confirmActivation() {
+            const id = document.getElementById('act_acc_id').value;
+            const duration = document.getElementById('act_duration').value;
+            const key = getAdminKey();
+
+            try {
+                const res = await fetch(`/api/admin/activate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        admin_key: key,
+                        account_id: parseInt(id),
+                        duration_days: duration === 'lifetime' ? null : parseInt(duration)
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeActivateModal();
+                    loadAccounts();
+                } else {
+                    alert("خطأ: " + data.message);
+                }
+            } catch (err) {
+                alert("حدث خطأ: " + err);
+            }
+        }
+
+        async function deactivateAccount(id) {
+            if (!confirm("هل أنت متأكد من تعطيل هذا الحساب؟")) return;
+            const key = getAdminKey();
+            try {
+                const res = await fetch(`/api/admin/deactivate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ admin_key: key, account_id: id })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadAccounts();
+                } else {
+                    alert("خطأ: " + data.message);
+                }
+            } catch (err) {
+                alert("حدث خطأ: " + err);
+            }
+        }
+
+        async function unbindDevice(id) {
+            if (!confirm("هل تريد فك ارتباط الجهاز لهذا الحساب؟ سيتمكن المستخدم من تسجيل الدخول من جهاز جديد.")) return;
+            const key = getAdminKey();
+            try {
+                const res = await fetch(`/api/admin/unbind-device`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ admin_key: key, account_id: id })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadAccounts();
+                } else {
+                    alert("خطأ: " + data.message);
+                }
+            } catch (err) {
+                alert("حدث خطأ: " + err);
+            }
+        }
+
+        async function deleteAccount(id, username) {
+            if (!confirm(`هل أنت متأكد تماماً من حذف الحساب "${username}" نهائياً؟`)) return;
+            const key = getAdminKey();
+            try {
+                const res = await fetch(`/api/admin/delete-account`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ admin_key: key, account_id: id })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadAccounts();
+                } else {
+                    alert("خطأ: " + data.message);
+                }
+            } catch (err) {
+                alert("حدث خطأ: " + err);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة مدرستي - إنشاء وتفعيل الحسابات</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        cairo: ['Cairo', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#10b981',
+                        primaryHover: '#059669',
+                        bgDark: '#0f172a',
+                        cardDark: '#1e293b',
+                        borderDark: '#334155',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Cairo', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between">
+
+    <!-- Header Navigation -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xl border border-emerald-500/30">
+                    م
+                </div>
+                <div>
+                    <h1 class="text-xl font-extrabold text-white tracking-wide">منصة مدرستي</h1>
+                    <p class="text-xs text-slate-400">بوابة التسجيل وإدارة التراخيص</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 text-sm">
+                <a href="/status" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">فحص حالة الحساب</a>
+                <a href="/admin" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 transition">لوحة الإدارة 🔒</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Registration Section -->
+    <main class="max-w-xl mx-auto px-4 py-10 w-full">
+        <div class="bg-slate-800/90 rounded-2xl border border-slate-700 p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+            <!-- Decorative Glow -->
+            <div class="absolute -top-12 -left-12 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+            <div class="absolute -bottom-12 -right-12 w-40 h-40 bg-sky-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+            <div class="text-center mb-6">
+                <h2 class="text-2xl font-bold text-white">إنشاء حساب جديد</h2>
+                <p class="text-sm text-slate-400 mt-1">اختر نوع حسابك ثم أكمل البيانات لطلب التفعيل</p>
+            </div>
+
+            <!-- Account Type Switcher -->
+            <div class="grid grid-cols-2 gap-2 p-1.5 bg-slate-900/90 rounded-xl border border-slate-700 mb-6">
+                <button type="button" id="tab-school" onclick="setAccountType('school')" 
+                    class="py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2 bg-emerald-600 text-white shadow-lg">
+                    <span>🏫</span> حساب مدرسة / مؤسسة
+                </button>
+                <button type="button" id="tab-teacher" onclick="setAccountType('teacher')" 
+                    class="py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2 text-slate-400 hover:text-white">
+                    <span>👨‍🏫</span> حساب أستاذ
+                </button>
+            </div>
+
+            <!-- Registration Form -->
+            <form id="regForm" onsubmit="submitRegistration(event)" class="space-y-4">
+                <input type="hidden" id="account_type" name="account_type" value="school">
+
+                <!-- School / Full Name -->
+                <div>
+                    <label id="name-label" class="block text-xs font-semibold text-slate-300 mb-1.5">اسم المؤسسة / المدرسة</label>
+                    <input type="text" id="full_name" required placeholder="مثال: مدرسة النجاح النموذجية"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition">
+                </div>
+
+                <!-- Username -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">اسم المستخدم (بالأحرف اللاتينية أو الأرقام)</label>
+                    <input type="text" id="username" required placeholder="مثال: ecole_najah" dir="ltr"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition font-mono">
+                    <p class="text-[11px] text-slate-400 mt-1">يُستخدم لتسجيل الدخول في تطبيق الهاتف والحاسوب</p>
+                </div>
+
+                <!-- Contact Info -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">رقم الهاتف للتواصل (أو البريد الإلكتروني)</label>
+                    <input type="text" id="contact_info" required placeholder="مثال: 0550123456" dir="ltr"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition">
+                </div>
+
+                <!-- Password -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">كلمة المرور</label>
+                        <input type="password" id="password" required placeholder="••••••••"
+                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">تأكيد كلمة المرور</label>
+                        <input type="password" id="confirm_password" required placeholder="••••••••"
+                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition">
+                    </div>
+                </div>
+
+                <!-- Notice -->
+                <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 leading-relaxed flex items-start gap-2">
+                    <span class="text-base">ℹ️</span>
+                    <span>بعد إتمام التسجيل، يتم تفعيل الحساب من طرف الإدارة قبل التمكن من استخدامه في التطبيق.</span>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" id="submitBtn"
+                    class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl shadow-lg transition duration-200 flex items-center justify-center gap-2">
+                    <span>إرسال طلب إنشاء الحساب</span>
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 text-center space-y-4 shadow-2xl animate-fade-in">
+            <div class="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center text-3xl mx-auto border border-emerald-500/30">
+                ✓
+            </div>
+            <h3 class="text-xl font-bold text-white">تم إنشاء الحساب بنجاح!</h3>
+            <p class="text-sm text-slate-300 leading-relaxed">
+                حسابك الآن قيد المراجعة. لتفعيل الحساب وربطه بجهازك، يرجى التواصل مع إدارة مدرستي.
+            </p>
+            <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 text-right text-xs space-y-2">
+                <div class="flex justify-between"><span class="text-slate-400">اسم المستخدم:</span> <span id="modal-username" class="font-bold text-white font-mono"></span></div>
+                <div class="flex justify-between"><span class="text-slate-400">حالة الحساب:</span> <span class="text-amber-400 font-bold">بانتظار التفعيل ⏳</span></div>
+            </div>
+            <div class="pt-2 flex flex-col gap-2">
+                <a href="/status" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition text-sm">متابعة حالة الحساب</a>
+                <button onclick="closeModal()" class="w-full py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold rounded-xl transition text-sm">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 py-6 text-center text-xs text-slate-500">
+        منصة مدرستي الرقمية © 2026 • جميع الحقوق محفوظة
+    </footer>
+
+    <script>
+        function setAccountType(type) {
+            document.getElementById('account_type').value = type;
+            const btnSchool = document.getElementById('tab-school');
+            const btnTeacher = document.getElementById('tab-teacher');
+            const nameLabel = document.getElementById('name-label');
+            const fullNameInput = document.getElementById('full_name');
+
+            if (type === 'school') {
+                btnSchool.className = "py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2 bg-emerald-600 text-white shadow-lg";
+                btnTeacher.className = "py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2 text-slate-400 hover:text-white";
+                nameLabel.innerText = "اسم المؤسسة / المدرسة";
+                fullNameInput.placeholder = "مثال: مدرسة النجاح النموذجية";
+            } else {
+                btnTeacher.className = "py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2 bg-emerald-600 text-white shadow-lg";
+                btnSchool.className = "py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2 text-slate-400 hover:text-white";
+                nameLabel.innerText = "الاسم الكامل للأستاذ";
+                fullNameInput.placeholder = "مثال: الأستاذ محمد بن علي";
+            }
+        }
+
+        async function submitRegistration(e) {
+            e.preventDefault();
+            const pwd = document.getElementById('password').value;
+            const cpwd = document.getElementById('confirm_password').value;
+
+            if (pwd !== cpwd) {
+                alert("كلمتا المرور غير متطابقتين!");
+                return;
+            }
+
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.innerText = "جاري الإرسال...";
+
+            const payload = {
+                account_type: document.getElementById('account_type').value,
+                full_name: document.getElementById('full_name').value,
+                username: document.getElementById('username').value,
+                password: pwd,
+                contact_info: document.getElementById('contact_info').value,
+            };
+
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('modal-username').innerText = payload.username;
+                    document.getElementById('successModal').classList.remove('hidden');
+                    document.getElementById('regForm').reset();
+                } else {
+                    alert("خطأ: " + data.message);
+                }
+            } catch (err) {
+                alert("حدث خطأ أثناء الاتصال بالسيرفر: " + err);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "إرسال طلب إنشاء الحساب";
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('successModal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
