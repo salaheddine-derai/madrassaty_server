@@ -1,0 +1,20 @@
+[project]
+name = "madrassaty_server"
+version = "1.0.0"
+description = "سيرفر مدرستي - إدارة وتوليد تراخيص التفعيل"
+dependencies = [
+    "flet==1.0.4",
+]
+
+[tool.flet]
+org = "com.madrassaty"
+product = "سيرفر مدرستي"
+company = "Madrassaty"
+copyright = "Copyright (c) 2026 Madrassaty"
+
+[tool.flet.app]
+path = "."
+
+[tool.flet.android]
+split_per_abi = false
+adaptive_icon_background = "#0f172a"

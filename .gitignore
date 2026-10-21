@@ -1,4 +1,28 @@
+# Python caches
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Build and APK outputs
+build/
+dist/
+*.apk
+*.aab
+
+# Local database and state (security: keep client licenses private)
+licenses.db
 *.db
-data/
+*.sqlite3
+
+# IDEs
+.idea/
+.vscode/
+*.swp

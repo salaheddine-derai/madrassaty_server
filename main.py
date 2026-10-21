@@ -1,295 +1,404 @@
-# main.py
 import os
-from datetime import datetime
-from fastapi import FastAPI, Request, HTTPException, Depends
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
-from typing import Optional
+import sys
+from datetime import date, timedelta
+import flet as ft
+from license_core import generate_activation_token, verify_activation_token, LicenseDB
 
-from database import (
-    init_db,
-    create_account,
-    get_account_by_username,
-    get_account_by_id,
-    get_all_accounts,
-    activate_account,
-    deactivate_account,
-    unbind_device,
-    bind_device,
-    delete_account,
-    hash_password,
-)
-from licence_manager import generate_activation_code
+def main(page: ft.Page):
+    page.title = "سيرفر مدرستي - إدارة وتوليد تراخيص التفعيل"
+    page.theme_mode = ft.ThemeMode.DARK
+    page.rtl = True
+    page.padding = ft.Padding.symmetric(horizontal=12, vertical=16)
+    page.scroll = ft.ScrollMode.AUTO
 
-from contextlib import asynccontextmanager
+    # ضبط أبعاد النافذة في بيئة الديسكتوب فقط دون التأثير على الهواتف
+    try:
+        if page.platform in [ft.PagePlatform.WINDOWS, ft.PagePlatform.MACOS, ft.PagePlatform.LINUX]:
+            page.window.width = 460
+            page.window.height = 840
+            page.window.min_width = 340
+            page.window.min_height = 400
+    except Exception:
+        pass
 
-# مفتاح الدخول للوحة تحكم الإدارة (يمكنك تغييره لكلمة مرور خاصة بك)
-ADMIN_SECRET_KEY = "admin_madrassaty_2026"
+    db = LicenseDB()
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # تهيئة قاعدة البيانات عند بدء تشغيل السيرفر
-    init_db()
-    yield
-
-app = FastAPI(title="Madrassaty Central Server & Web Platform", lifespan=lifespan)
-
-# إعداد قوالب HTML
-templates = Jinja2Templates(directory="templates")
-
-# =========================================================
-# 1. صفحات الويب (Web Pages)
-# =========================================================
-
-@app.get("/", response_class=HTMLResponse)
-@app.get("/register", response_class=HTMLResponse)
-def page_register(request: Request):
-    """صفحة إنشاء الحسابات للمدارس والأساتذة"""
-    return templates.TemplateResponse(request=request, name="register.html")
-
-@app.get("/status", response_class=HTMLResponse)
-def page_status(request: Request):
-    """صفحة فحص حالة التفعيل والصلاحية"""
-    return templates.TemplateResponse(request=request, name="status.html")
-
-@app.get("/admin", response_class=HTMLResponse)
-def page_admin(request: Request):
-    """لوحة تحكم الإدارة المركزية والتراخيص"""
-    return templates.TemplateResponse(request=request, name="admin.html")
-
-
-# =========================================================
-# 2. واجهات برمجة التطبيقات العامة للموقع (Public Web APIs)
-# =========================================================
-
-class RegisterPayload(BaseModel):
-    account_type: str
-    full_name: str
-    username: str
-    password: str
-    contact_info: str
-
-@app.post("/api/register")
-def api_register(payload: RegisterPayload):
-    """تسجيل حساب جديد من الموقع"""
-    if payload.account_type not in ['school', 'teacher']:
-        return {"success": False, "message": "نوع الحساب غير صالح"}
-    
-    if len(payload.username.strip()) < 3:
-        return {"success": False, "message": "اسم المستخدم يجب أن يكون 3 أحرف على الأقل"}
-
-    if len(payload.password) < 4:
-        return {"success": False, "message": "كلمة المرور قصيرة جداً (4 خانات كحد أدنى)"}
-
-    ok, msg, acc_id = create_account(
-        account_type=payload.account_type,
-        full_name=payload.full_name,
-        username=payload.username,
-        password=payload.password,
-        contact_info=payload.contact_info,
+    # عناصر الإدخال مع دعم الشاشات الصغيرة والكبيرة Responsive
+    username_input = ft.TextField(
+        label="اسم المستخدم (Username) *",
+        hint_text="مثال: ecole_najah أو admin",
+        prefix_icon=ft.Icons.PERSON_ROUNDED,
+        autofocus=True,
+        border=ft.OutlineInputBorder(border_radius=10),
+        col={"xs": 12, "sm": 12, "md": 6},
     )
-    return {"success": ok, "message": msg, "account_id": acc_id}
 
-@app.get("/api/status/{username}")
-def api_check_status(username: str):
-    """فحص حالة حساب معين"""
-    acc = get_account_by_username(username)
-    if not acc:
-        return {"found": False}
-    
-    is_expired = False
-    if acc.get('expires_at'):
-        try:
-            exp_dt = datetime.strptime(acc['expires_at'], "%Y-%m-%d")
-            is_expired = (exp_dt < datetime.now())
-        except:
-            pass
+    device_id_input = ft.TextField(
+        label="معرّف الجهاز (Device ID) *",
+        hint_text="مثال: MAD-4E2A-9B10",
+        prefix_icon=ft.Icons.PHONE_ANDROID_ROUNDED,
+        border=ft.OutlineInputBorder(border_radius=10),
+        col={"xs": 12, "sm": 12, "md": 6},
+    )
 
-    return {
-        "found": True,
-        "username": acc['username'],
-        "full_name": acc['full_name'],
-        "account_type": acc['account_type'],
-        "is_active": bool(acc['is_active']),
-        "expires_at": acc.get('expires_at'),
-        "is_expired": is_expired,
-        "is_bound": bool(acc.get('bound_device_id')),
+    school_name_input = ft.TextField(
+        label="اسم المدرسة / المؤسسة (اختياري)",
+        hint_text="مثال: مدرسة النجاح النموذجية",
+        prefix_icon=ft.Icons.SCHOOL_ROUNDED,
+        border=ft.OutlineInputBorder(border_radius=10),
+        col={"xs": 12, "sm": 12, "md": 6},
+    )
+
+    phone_input = ft.TextField(
+        label="رقم هاتف المدير / المسير (اختياري)",
+        hint_text="مثال: 0550123456",
+        prefix_icon=ft.Icons.PHONE_ROUNDED,
+        border=ft.OutlineInputBorder(border_radius=10),
+        col={"xs": 12, "sm": 12, "md": 6},
+    )
+
+    notes_input = ft.TextField(
+        label="ملاحظات إضافية (اختياري)",
+        hint_text="مثال: اشتراك سنوي مدفوع عبر بريدي موب",
+        prefix_icon=ft.Icons.NOTE_ALT_ROUNDED,
+        border=ft.OutlineInputBorder(border_radius=10),
+        col={"xs": 12},
+    )
+
+    # حساب التواريخ المسبقة
+    def calculate_expiry(choice: str) -> str:
+        today = date.today()
+        if choice == "1_month":
+            return (today + timedelta(days=30)).strftime("%Y-%m-%d")
+        elif choice == "3_months":
+            return (today + timedelta(days=90)).strftime("%Y-%m-%d")
+        elif choice == "6_months":
+            return (today + timedelta(days=180)).strftime("%Y-%m-%d")
+        elif choice == "1_year":
+            return (today + timedelta(days=365)).strftime("%Y-%m-%d")
+        elif choice == "2_years":
+            return (today + timedelta(days=730)).strftime("%Y-%m-%d")
+        elif choice == "lifetime":
+            return "2099-12-31"
+        return (today + timedelta(days=365)).strftime("%Y-%m-%d")
+
+    duration_labels = {
+        "1_month": "شهر واحد (30 يوم)",
+        "3_months": "3 أشهر",
+        "6_months": "6 أشهر",
+        "1_year": "سنة كاملة (365 يوم)",
+        "2_years": "سنتين",
+        "lifetime": "تفعيل دائم مدى الحياة (2099)",
+        "custom": "تاريخ مخصص...",
     }
 
+    expiry_date_input = ft.TextField(
+        label="تاريخ انتهاء الصلاحية (YYYY-MM-DD) *",
+        value=calculate_expiry("1_year"),
+        prefix_icon=ft.Icons.CALENDAR_TODAY_ROUNDED,
+        border=ft.OutlineInputBorder(border_radius=10),
+        read_only=True,
+        col={"xs": 12, "sm": 12, "md": 5},
+    )
 
-# =========================================================
-# 3. واجهات لوحة تحكم الإدارة (Admin APIs)
-# =========================================================
+    def on_duration_changed(e):
+        selected = duration_dropdown.value
+        if selected == "custom":
+            expiry_date_input.read_only = False
+            expiry_date_input.focus()
+        else:
+            expiry_date_input.read_only = True
+            expiry_date_input.value = calculate_expiry(selected)
+        page.update()
 
-def verify_admin(admin_key: str):
-    if admin_key != ADMIN_SECRET_KEY:
-        raise HTTPException(status_code=401, detail="Unauthorized admin key")
+    duration_dropdown = ft.Dropdown(
+        label="مدة الترخيص والتفعيل",
+        value="1_year",
+        border=ft.OutlineInputBorder(border_radius=10),
+        col={"xs": 12, "sm": 12, "md": 7},
+        options=[
+            ft.dropdown.Option("1_year", "سنة كاملة (365 يوم) - الافتراضي"),
+            ft.dropdown.Option("6_months", "6 أشهر"),
+            ft.dropdown.Option("3_months", "3 أشهر"),
+            ft.dropdown.Option("1_month", "شهر واحد (30 يوم)"),
+            ft.dropdown.Option("2_years", "سنتين"),
+            ft.dropdown.Option("lifetime", "تفعيل دائم مدى الحياة (2099)"),
+            ft.dropdown.Option("custom", "تحديد تاريخ انتهاء مخصص"),
+        ],
+        on_select=on_duration_changed,
+    )
 
-@app.get("/api/admin/accounts")
-def admin_get_accounts(admin_key: str):
-    verify_admin(admin_key)
-    accounts = get_all_accounts()
-    # نحذف كلمات المرور من النتائج للأمان
-    for a in accounts:
-        a.pop('password_hash', None)
-    return {"accounts": accounts}
+    # كارت إظهار النتيجة
+    result_token_input = ft.TextField(
+        label="كود التفعيل الموقّع رقمياً (جاهز للإرسال للعميل)",
+        value="",
+        read_only=True,
+        border=ft.OutlineInputBorder(border_radius=10),
+        multiline=True,
+        min_lines=2,
+        max_lines=3,
+        text_size=12.5,
+        prefix_icon=ft.Icons.VPN_KEY_ROUNDED,
+    )
 
-class AdminActivatePayload(BaseModel):
-    admin_key: str
-    account_id: int
-    duration_days: Optional[int] = 365
+    result_info_text = ft.Text(
+        value="",
+        color=ft.Colors.GREEN_400,
+        size=12.5,
+        weight=ft.FontWeight.BOLD,
+    )
 
-@app.post("/api/admin/activate")
-def admin_activate(payload: AdminActivatePayload):
-    verify_admin(payload.admin_key)
-    ok = activate_account(payload.account_id, payload.duration_days)
-    return {"success": ok, "message": "تم تفعيل الحساب بنجاح" if ok else "تعذر التفعيل"}
+    copy_btn = ft.FilledButton(
+        content="نسخ كود التفعيل",
+        icon=ft.Icons.CONTENT_COPY_ROUNDED,
+        visible=False,
+    )
 
-class AdminGenericPayload(BaseModel):
-    admin_key: str
-    account_id: int
+    def show_snack(message: str, is_error: bool = False):
+        snack = ft.SnackBar(
+            content=ft.Text(message, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
+            bgcolor=ft.Colors.RED_700 if is_error else ft.Colors.TEAL_700,
+            duration=3000,
+        )
+        page.show_dialog(snack)
 
-@app.post("/api/admin/deactivate")
-def admin_deactivate(payload: AdminGenericPayload):
-    verify_admin(payload.admin_key)
-    ok = deactivate_account(payload.account_id)
-    return {"success": ok, "message": "تم تعطيل الحساب" if ok else "تعذر التعطيل"}
+    def generate_code_click(e):
+        username = username_input.value.strip()
+        device_id = device_id_input.value.strip().upper()
+        school_name = school_name_input.value.strip()
+        phone = phone_input.value.strip()
+        notes = notes_input.value.strip()
+        exp_date = expiry_date_input.value.strip()
+        dur_key = duration_dropdown.value
+        dur_label = duration_labels.get(dur_key, dur_key)
 
-@app.post("/api/admin/unbind-device")
-def admin_unbind_device(payload: AdminGenericPayload):
-    verify_admin(payload.admin_key)
-    ok = unbind_device(payload.account_id)
-    return {"success": ok, "message": "تم فك ارتباط الجهاز بنجاح" if ok else "تعذر فك الارتباط"}
+        if not username:
+            show_snack("خطأ: يرجى إدخال اسم المستخدم (Username).", is_error=True)
+            username_input.focus()
+            return
 
-@app.post("/api/admin/delete-account")
-def admin_delete_account(payload: AdminGenericPayload):
-    verify_admin(payload.admin_key)
-    ok = delete_account(payload.account_id)
-    return {"success": ok, "message": "تم حذف الحساب نهائياً" if ok else "تعذر الحذف"}
+        if not device_id:
+            show_snack("خطأ: يرجى إدخال معرّف الجهاز (Device ID).", is_error=True)
+            device_id_input.focus()
+            return
 
+        if not exp_date:
+            show_snack("خطأ: يرجى تحديد تاريخ انتهاء الصلاحية.", is_error=True)
+            return
 
-# =========================================================
-# 4. الـ API المخصص لتطبيق مدرستي (Mobile / Desktop Client API)
-# =========================================================
-
-class AppLoginPayload(BaseModel):
-    username: str
-    password: str
-    device_id: str
-    account_type: Optional[str] = None
-
-@app.post("/api/app-login")
-def api_app_login(payload: AppLoginPayload):
-    """
-    تسجيل الدخول من داخل تطبيق الهاتف أو الحاسوب:
-    يتحقق من:
-    1. صحة اسم المستخدم وكلمة المرور
-    2. حالة التفعيل (مفعل / غير مفعل)
-    3. الصلاحية (سارية / منتهية)
-    4. ربط الجهاز (Device Binding لمنع فتح الحساب في جهازين مختلفين)
-    """
-    username = payload.username.strip().lower()
-    acc = get_account_by_username(username)
-
-    if not acc:
-        return {
-            "success": False,
-            "error": "user_not_found",
-            "message": "اسم المستخدم غير موجود، يرجى إنشاء حساب أولاً عبر موقعنا."
-        }
-
-    # التحقق من نوع الحساب إذا تم تحديده
-    if payload.account_type and acc['account_type'] != payload.account_type:
-        return {
-            "success": False,
-            "error": "account_type_mismatch",
-            "message": f"هذا الحساب مسجل كـ ({acc['account_type']}) وليس ({payload.account_type})."
-        }
-
-    # التحقق من كلمة المرور
-    pwd_hash = hash_password(payload.password)
-    if pwd_hash != acc['password_hash']:
-        return {
-            "success": False,
-            "error": "wrong_password",
-            "message": "كلمة المرور غير صحيحة."
-        }
-
-    # التحقق من التفعيل
-    if not acc['is_active']:
-        return {
-            "success": False,
-            "error": "not_active",
-            "message": "حسابك غير مفعّل بعد! يرجى الدخول للموقع والتواصل مع الإدارة لتفعيل اشتراكك.",
-            "status_url": f"/status"
-        }
-
-    # التحقق من تاريخ الصلاحية
-    expires_at = acc.get('expires_at')
-    if expires_at:
         try:
-            exp_date = datetime.strptime(expires_at, "%Y-%m-%d")
-            if exp_date < datetime.now():
-                return {
-                    "success": False,
-                    "error": "subscription_expired",
-                    "message": f"انتهت صلاحية اشتراكك بتاريخ ({expires_at}). يرجى تجديد الاشتراك عبر الموقع."
-                }
-        except:
-            pass
+            token = generate_activation_token(username, device_id, exp_date)
+            # حفظ بالسجل
+            db.add_license(username, device_id, school_name, phone, dur_label, exp_date, token, notes)
 
-    # التحقق من ربط الجهاز (Single Device Policy)
-    current_bound_device = acc.get('bound_device_id')
-    device_id = payload.device_id.strip()
+            result_token_input.value = token
+            result_info_text.value = f"✓ تم التوليد بنجاح! المستخدم: {username.lower()} • الجهاز: {device_id} • الصلاحية: {exp_date}"
+            copy_btn.visible = True
+            copy_btn.action = ft.CopyToClipboard(token)
 
-    if not current_bound_device:
-        # ربط الحساب بهذا الجهاز لأول مرة
-        bind_device(acc['id'], device_id)
-    elif current_bound_device != device_id:
-        return {
-            "success": False,
-            "error": "device_mismatch",
-            "message": "هذا الحساب مرتبط بجهاز آخر بالفعل! للأمان لا يمكن تشغيل الحساب في جهازين في نفس الوقت. اتصل بالإدارة لفك ربط الجهاز القديم."
-        }
+            load_history()
+            show_snack("تم إنشاء وتوقيع كود التفعيل بنجاح!")
+        except Exception as ex:
+            show_snack(f"حدث خطأ: {ex}", is_error=True)
 
-    # توليد توكن ترخيص مشفر (License Token)
-    license_token = generate_activation_code(acc['username'], expires_at or "2099-12-31")
+    # جدول السجل
+    history_column = ft.Column(spacing=10)
 
-    return {
-        "success": True,
-        "message": "تم تسجيل الدخول بنجاح",
-        "user": {
-            "id": acc['id'],
-            "username": acc['username'],
-            "full_name": acc['full_name'],
-            "school_name": acc.get('school_name', acc['full_name']),
-            "account_type": acc['account_type'],
-            "expires_at": expires_at,
-        },
-        "license_token": license_token
-    }
+    def delete_single_license(lic_id):
+        db.delete_license(lic_id)
+        load_history()
+        show_snack("تم حذف الترخيص من السجل.")
 
-class LicenseCheckPayload(BaseModel):
-    username: str
-    device_id: str
+    def load_history(search_query: str = ""):
+        history_column.controls.clear()
+        if search_query.strip():
+            licenses = db.search_licenses(search_query)
+        else:
+            licenses = db.get_all_licenses()
 
-@app.post("/api/app-check-license")
-def api_app_check_license(payload: LicenseCheckPayload):
-    """تحقق دوري من استمرار صلاحية الترخيص وربط الجهاز"""
-    acc = get_account_by_username(payload.username.strip().lower())
-    if not acc or not acc['is_active']:
-        return {"valid": False, "reason": "not_active"}
+        if not licenses:
+            history_column.controls.append(
+                ft.Container(
+                    content=ft.Text(
+                        "لا توجد تراخيص مسجلة حتى الآن." if not search_query else "لا توجد نتائج مطابقة للبحث.",
+                        color=ft.Colors.GREY_500,
+                        size=13,
+                    ),
+                    alignment=ft.Alignment(0, 0),
+                    padding=25,
+                )
+            )
+        else:
+            for lic in licenses:
+                token_val = lic['token']
+                dev_id_display = lic.get('device_id') or 'عام'
+                history_column.controls.append(
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                ft.Row(
+                                    controls=[
+                                        ft.Row([
+                                            ft.Icon(ft.Icons.VERIFIED_ROUNDED, color=ft.Colors.TEAL_400, size=20),
+                                            ft.Text(f"المستخدم: {lic['username']}", weight=ft.FontWeight.BOLD, size=13.5),
+                                        ], spacing=6),
+                                        ft.Row([
+                                            ft.IconButton(
+                                                icon=ft.Icons.CONTENT_COPY_ROUNDED,
+                                                tooltip="نسخ الكود",
+                                                icon_color=ft.Colors.AMBER_400,
+                                                action=ft.CopyToClipboard(token_val),
+                                                on_click=lambda e: show_snack("تم نسخ الكود بنجاح!"),
+                                            ),
+                                            ft.IconButton(
+                                                icon=ft.Icons.DELETE_OUTLINE_ROUNDED,
+                                                tooltip="حذف",
+                                                icon_color=ft.Colors.RED_400,
+                                                on_click=lambda e, lid=lic['id']: delete_single_license(lid),
+                                            ),
+                                        ], spacing=0),
+                                    ],
+                                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                ),
+                                ft.Container(
+                                    content=ft.Row([
+                                        const_icon := ft.Icon(ft.Icons.PHONE_ANDROID_ROUNDED, size=15, color=ft.Colors.TEAL_300),
+                                        ft.Text(f"معرّف الجهاز: {dev_id_display}", color=ft.Colors.TEAL_300, weight=ft.FontWeight.BOLD, size=12.5),
+                                    ], spacing=6),
+                                    padding=ft.Padding.only(top=1, bottom=3),
+                                ),
+                                ft.Row([
+                                    ft.Text(f"المدرسة: {lic['school_name'] or 'غير محدد'}", color=ft.Colors.GREY_400, size=12),
+                                    ft.Text(f"• الهاتف: {lic['phone'] or '-'}", color=ft.Colors.GREY_400, size=12),
+                                ], wrap=True),
+                                ft.Text(
+                                    f"تاريخ الإنشاء: {lic['created_at']} | ينتهي في: {lic['expiry_date']} ({lic['duration_label']})",
+                                    color=ft.Colors.GREY_500,
+                                    size=11,
+                                ),
+                            ],
+                            spacing=3,
+                        ),
+                        padding=12,
+                        border_radius=10,
+                        bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH,
+                        border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
+                    )
+                )
+        page.update()
 
-    if acc.get('bound_device_id') and acc['bound_device_id'] != payload.device_id.strip():
-        return {"valid": False, "reason": "device_mismatch"}
+    search_input = ft.TextField(
+        hint_text="بحث باسم المستخدم، معرف الجهاز، المدرسة، أو الهاتف...",
+        prefix_icon=ft.Icons.SEARCH_ROUNDED,
+        border=ft.OutlineInputBorder(border_radius=10),
+        dense=True,
+        on_change=lambda e: load_history(search_input.value),
+        expand=True,
+    )
 
-    expires_at = acc.get('expires_at')
-    if expires_at:
-        try:
-            if datetime.strptime(expires_at, "%Y-%m-%d") < datetime.now():
-                return {"valid": False, "reason": "expired"}
-        except:
-            pass
+    # بناء واجهة التطبيق المتجاوبة بالكامل ResponsiveRow
+    page.add(
+        # الهيدر
+        ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.ADMIN_PANEL_SETTINGS_ROUNDED, color=ft.Colors.TEAL_400, size=30),
+                    ft.Column(
+                        controls=[
+                            ft.Text("سيرفر تراخيص مدرستي", weight=ft.FontWeight.BOLD, size=17),
+                            ft.Text("توليد وتوقيع أكواد تفعيل الحسابات المربوطة بالجهاز", color=ft.Colors.GREY_400, size=11),
+                        ],
+                        spacing=2,
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.START,
+            ),
+            padding=ft.Padding.only(bottom=8),
+        ),
 
-    return {"valid": True, "expires_at": expires_at}
+        # كارت نموذج التوليد
+        ft.Card(
+            content=ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.ResponsiveRow(
+                            controls=[
+                                username_input,
+                                device_id_input,
+                                school_name_input,
+                                phone_input,
+                                duration_dropdown,
+                                expiry_date_input,
+                                notes_input,
+                            ],
+                            spacing=12,
+                            run_spacing=12,
+                        ),
+                        ft.Container(
+                            content=ft.FilledButton(
+                                content="توليد وتوقيع كود التفعيل المربوط بالجهاز الآن",
+                                icon=ft.Icons.KEY_ROUNDED,
+                                style=ft.ButtonStyle(
+                                    bgcolor=ft.Colors.TEAL_600,
+                                    color=ft.Colors.WHITE,
+                                    padding=14,
+                                ),
+                                on_click=generate_code_click,
+                            ),
+                            alignment=ft.Alignment(0, 0),
+                            padding=ft.Padding.only(top=6),
+                        ),
+                        ft.Divider(height=10, color=ft.Colors.OUTLINE_VARIANT),
+                        result_token_input,
+                        ft.Row(
+                            controls=[
+                                result_info_text,
+                                copy_btn,
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            wrap=True,
+                        ),
+                    ],
+                    spacing=12,
+                ),
+                padding=14,
+            ),
+            elevation=2,
+        ),
+
+        ft.Container(height=10),
+
+        # هيدر السجل والبحث متجاوب مع شاشات الهواتف
+        ft.ResponsiveRow(
+            controls=[
+                ft.Container(
+                    content=ft.Row([
+                        ft.Icon(ft.Icons.HISTORY_ROUNDED, color=ft.Colors.AMBER_400, size=20),
+                        ft.Text("سجل التراخيص الصادرة", weight=ft.FontWeight.BOLD, size=15),
+                    ]),
+                    col={"xs": 12, "sm": 12, "md": 4},
+                    alignment=ft.Alignment(-1, 0),
+                ),
+                ft.Container(
+                    content=search_input,
+                    col={"xs": 12, "sm": 12, "md": 8},
+                ),
+            ],
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=8,
+            run_spacing=8,
+        ),
+
+        ft.Container(height=4),
+
+        # قائمة السجل
+        ft.Container(
+            content=history_column,
+            padding=ft.Padding.only(bottom=30),
+        ),
+    )
+
+    load_history()
+
+if __name__ == "__main__":
+    ft.run(main)
